@@ -463,6 +463,19 @@ func profileAddHandler(w *Web) {
 		disableDNS = true
 	}
 
+	dnsServers := getEnv("SUBSPACE_CLIENT_DNS", func () string {
+		dns := []string{}
+
+		if ipv4Enabled {
+			dns = append(dns, ipv4Gw)
+		}
+		if ipv6Enabled {
+			dns = append(dns, ipv6Gw)
+		}
+
+		return strings.Join(dns[:], ",")
+	}())
+
 	script := `
 cd {{$.Datadir}}/wireguard
 wg_private_key="$(wg genkey)"
@@ -480,7 +493,7 @@ cat <<WGCLIENT >clients/{{$.Profile.ID}}.conf
 [Interface]
 PrivateKey = ${wg_private_key}
 {{- if not .DisableDNS }}
-DNS = {{if .Ipv4Enabled}}{{$.IPv4Gw}}{{end}}{{if .Ipv6Enabled}}{{if .Ipv4Enabled}},{{end}}{{$.IPv6Gw}}{{end}}
+DNS = {{$.DnsServers}}
 {{- end }}
 Address = {{if .Ipv4Enabled}}{{$.IPv4Pref}}{{$.Profile.Number}}/{{$.IPv4Cidr}}{{end}}{{if .Ipv6Enabled}}{{if .Ipv4Enabled}},{{end}}{{$.IPv6Pref}}{{$.Profile.Number}}/{{$.IPv6Cidr}}{{end}}
 
@@ -506,6 +519,7 @@ WGCLIENT
 		Ipv4Enabled  bool
 		Ipv6Enabled  bool
 		DisableDNS   bool
+		DnsServers   string
 	}{
 		profile,
 		endpointHost,
@@ -521,6 +535,7 @@ WGCLIENT
 		ipv4Enabled,
 		ipv6Enabled,
 		disableDNS,
+		dnsServers,
 	})
 	if err != nil {
 		logger.Warn(err)
